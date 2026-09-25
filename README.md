@@ -13,7 +13,7 @@ swift test
 open build/Clocky.app
 ```
 
-Quit the development instance from the Clocky menu before opening the bundle. The packaging script works from any working directory, defaults to release, and accepts `--debug`. It replaces only the generated `build/Clocky.app`, validates its plist, and ad hoc signs it for local use. It is **not notarized** or signed for distribution. The bundle identifier is `dev.xikxp1.clocky`.
+Quit the development instance from the Clocky menu before opening the bundle. The packaging script works from any working directory, defaults to release, and accepts `--debug`. It replaces only the generated `build/Clocky.app`, validates its plist, and signs it with `Developer ID Application: Ivan Kachalkin (MT228PBG67)`, enabling hardened runtime and a secure timestamp. The certificate and its private key must be available in your Keychain, and timestamping requires Internet access. Signing or verification failure leaves the previous bundle untouched; there is no ad hoc fallback. It is **not notarized**, so Gatekeeper may still block downloaded copies. The bundle identifier is `dev.xikxp1.clocky`.
 
 For a short native-panel check in a logged-in graphical session:
 

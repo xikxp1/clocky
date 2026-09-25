@@ -1,7 +1,8 @@
 #!/bin/bash
-# Build a locally ad hoc signed app; no distribution identity or notarization.
+# Build a Developer ID signed app with hardened runtime; no notarization.
 set -euo pipefail
 
+signing_identity='Developer ID Application: Ivan Kachalkin (MT228PBG67)'
 configuration=release
 case "${1:-}" in
     "") ;;
@@ -59,11 +60,11 @@ chmod 755 "$bundle/Contents/MacOS/Clocky"
 cp -- "$project_dir/Resources/Info.plist" "$bundle/Contents/Info.plist"
 cp -- "$project_dir/Resources/AppIcon.icns" "$bundle/Contents/Resources/AppIcon.icns"
 /usr/bin/plutil -lint "$bundle/Contents/Info.plist"
-/usr/bin/codesign --force --sign - --timestamp=none "$bundle"
+/usr/bin/codesign --force --sign "$signing_identity" --options runtime --timestamp "$bundle"
 /usr/bin/codesign --verify --strict --verbose=2 "$bundle"
 
 # Replacement is restricted to the fixed, checked generated bundle above.
 # Keep the previous app until the new bundle has built and passed validation.
 rm -rf -- "$app_path"
 mv -- "$bundle" "$app_path"
-printf '\nBuilt %s (%s, ad hoc signed for local use; not notarized).\n' "$app_path" "$configuration"
+printf '\nBuilt %s (%s, Developer ID signed with hardened runtime and secure timestamp; not notarized).\n' "$app_path" "$configuration"
