@@ -34,7 +34,7 @@ if [[ -L "$build_dir" || -L "$app_path" ]]; then
 fi
 if [[ -e "$app_path" ]]; then
     if [[ ! -d "$app_path" ]] ||
-       [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Contents/Info.plist" 2>/dev/null || true)" != local.clocky.app ]]; then
+       [[ "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Contents/Info.plist" 2>/dev/null || true)" != dev.xikxp1.clocky ]]; then
         printf 'Refusing to replace an unrecognized build/Clocky.app.\n' >&2
         exit 1
     fi

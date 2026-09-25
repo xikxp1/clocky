@@ -63,6 +63,11 @@ public struct DisplayPosition: Codable, Equatable {
 public struct ClockPreferences: Codable, Equatable {
     public var isVisible: Bool
     public var showsSeconds: Bool
+    public var showsMacBattery: Bool
+    public var showsIPhoneBattery: Bool
+    public var showsAirPodsBattery: Bool
+    public var showsAirPodsCaseBattery: Bool
+    public var ble: BLEPreferences
     public var timeFormat: TimeFormat
     /// PostScript font name; nil retains the default system font.
     public var fontName: String?
@@ -72,9 +77,18 @@ public struct ClockPreferences: Codable, Equatable {
     public var backgroundOpacity: Double
     public var positions: [String: DisplayPosition]
 
+    public var showsAnyBattery: Bool {
+        showsMacBattery || showsIPhoneBattery || showsAirPodsBattery || showsAirPodsCaseBattery
+    }
+
     public init() {
         isVisible = true
         showsSeconds = false
+        showsMacBattery = true
+        showsIPhoneBattery = true
+        showsAirPodsBattery = true
+        showsAirPodsCaseBattery = true
+        ble = BLEPreferences()
         timeFormat = .system
         fontName = nil
         fontSize = 28
@@ -87,6 +101,7 @@ public struct ClockPreferences: Codable, Equatable {
     private enum CodingKeys: String, CodingKey {
         case isVisible, showsSeconds, timeFormat, fontName, fontSize, textColor
         case backgroundColor, backgroundOpacity, positions
+        case showsMacBattery, showsIPhoneBattery, showsAirPodsBattery, showsAirPodsCaseBattery, ble
     }
 
     /// Missing, null, or unrecognized fields retain their defaults. This allows
@@ -96,13 +111,26 @@ public struct ClockPreferences: Codable, Equatable {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         isVisible = (try? values.decode(Bool.self, forKey: .isVisible)) ?? isVisible
         showsSeconds = (try? values.decode(Bool.self, forKey: .showsSeconds)) ?? showsSeconds
+        showsMacBattery =
+            (try? values.decode(Bool.self, forKey: .showsMacBattery)) ?? showsMacBattery
+        showsIPhoneBattery =
+            (try? values.decode(Bool.self, forKey: .showsIPhoneBattery)) ?? showsIPhoneBattery
+        showsAirPodsBattery =
+            (try? values.decode(Bool.self, forKey: .showsAirPodsBattery)) ?? showsAirPodsBattery
+        showsAirPodsCaseBattery =
+            (try? values.decode(Bool.self, forKey: .showsAirPodsCaseBattery))
+            ?? showsAirPodsCaseBattery
+        ble = (try? values.decode(BLEPreferences.self, forKey: .ble)) ?? ble
         timeFormat = (try? values.decode(TimeFormat.self, forKey: .timeFormat)) ?? timeFormat
         fontName = try? values.decode(String.self, forKey: .fontName)
         fontSize = (try? values.decode(Double.self, forKey: .fontSize)) ?? fontSize
         textColor = (try? values.decode(RGBAColor.self, forKey: .textColor)) ?? textColor
-        backgroundColor = (try? values.decode(RGBAColor.self, forKey: .backgroundColor)) ?? backgroundColor
-        backgroundOpacity = (try? values.decode(Double.self, forKey: .backgroundOpacity)) ?? backgroundOpacity
-        positions = (try? values.decode([String: DisplayPosition].self, forKey: .positions)) ?? positions
+        backgroundColor =
+            (try? values.decode(RGBAColor.self, forKey: .backgroundColor)) ?? backgroundColor
+        backgroundOpacity =
+            (try? values.decode(Double.self, forKey: .backgroundOpacity)) ?? backgroundOpacity
+        positions =
+            (try? values.decode([String: DisplayPosition].self, forKey: .positions)) ?? positions
     }
 
     /// Finite out-of-range values are clamped; nonfinite values use defaults.
@@ -114,13 +142,16 @@ public struct ClockPreferences: Codable, Equatable {
         result.fontSize = bounded(fontSize, to: 14...96, default: defaults.fontSize)
         result.textColor = textColor.sanitized(default: defaults.textColor)
         result.backgroundColor = backgroundColor.sanitized(default: defaults.backgroundColor)
-        result.backgroundOpacity = bounded(backgroundOpacity, to: 0...1, default: defaults.backgroundOpacity)
+        result.backgroundOpacity = bounded(
+            backgroundOpacity, to: 0...1, default: defaults.backgroundOpacity)
         result.positions = positions.mapValues { $0.sanitized() }
         return result
     }
 }
 
-private func bounded(_ value: Double, to range: ClosedRange<Double>, default fallback: Double) -> Double {
+private func bounded(_ value: Double, to range: ClosedRange<Double>, default fallback: Double)
+    -> Double
+{
     guard value.isFinite else { return fallback }
     return min(range.upperBound, max(range.lowerBound, value))
 }

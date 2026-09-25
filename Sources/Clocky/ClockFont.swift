@@ -4,10 +4,18 @@ import ClockyCore
 /// Rendering and window measurement must use the same font, including fallback.
 enum ClockFont {
     static func resolve(_ preferences: ClockPreferences) -> NSFont {
-        if let name = preferences.fontName, let font = NSFont(name: name, size: preferences.fontSize) {
+        resolve(preferences, size: preferences.fontSize)
+    }
+
+    static func battery(_ preferences: ClockPreferences) -> NSFont {
+        resolve(preferences, size: max(10, preferences.fontSize * 0.45))
+    }
+
+    private static func resolve(_ preferences: ClockPreferences, size: CGFloat) -> NSFont {
+        if let name = preferences.fontName, let font = NSFont(name: name, size: size) {
             return font
         }
-        return NSFont.monospacedDigitSystemFont(ofSize: preferences.fontSize, weight: .medium)
+        return NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
     }
 
     static func isAvailable(_ name: String?) -> Bool {

@@ -7,6 +7,11 @@ final class ClockPreferencesTests: XCTestCase {
         let preferences = ClockPreferences()
         XCTAssertTrue(preferences.isVisible)
         XCTAssertFalse(preferences.showsSeconds)
+        XCTAssertTrue(preferences.showsMacBattery)
+        XCTAssertTrue(preferences.showsIPhoneBattery)
+        XCTAssertTrue(preferences.showsAirPodsBattery)
+        XCTAssertTrue(preferences.showsAirPodsCaseBattery)
+        XCTAssertTrue(preferences.showsAnyBattery)
         XCTAssertEqual(preferences.timeFormat, .system)
         XCTAssertNil(preferences.fontName)
         XCTAssertEqual(preferences.fontSize, 28)
@@ -32,6 +37,10 @@ final class ClockPreferencesTests: XCTestCase {
         var preferences = ClockPreferences()
         preferences.isVisible = false
         preferences.showsSeconds = true
+        preferences.showsMacBattery = false
+        preferences.showsIPhoneBattery = true
+        preferences.showsAirPodsBattery = false
+        preferences.showsAirPodsCaseBattery = true
         preferences.timeFormat = .twentyFourHour
         preferences.fontName = "Helvetica-Bold"
         preferences.fontSize = 42
@@ -42,12 +51,20 @@ final class ClockPreferencesTests: XCTestCase {
         let data = try JSONEncoder().encode(preferences)
         XCTAssertEqual(try JSONDecoder().decode(ClockPreferences.self, from: data), preferences)
         let dictionary = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        for field in batteryVisibilityFields {
+            XCTAssertEqual(dictionary[field.key] as? Bool, preferences[keyPath: field.keyPath])
+        }
+        XCTAssertNil(dictionary["showsAnyBattery"])
         let color = try XCTUnwrap(dictionary["textColor"] as? [String: Any])
         XCTAssertEqual(Set(color.keys), Set(["red", "green", "blue"]))
     }
 
     func testPropertyListRoundTrip() throws {
         var preferences = ClockPreferences()
+        preferences.showsMacBattery = true
+        preferences.showsIPhoneBattery = false
+        preferences.showsAirPodsBattery = true
+        preferences.showsAirPodsCaseBattery = false
         preferences.positions = ["external": DisplayPosition(x: 0.3, y: 0.7)]
         let data = try PropertyListEncoder().encode(preferences)
         XCTAssertEqual(try PropertyListDecoder().decode(ClockPreferences.self, from: data), preferences)
@@ -59,6 +76,58 @@ final class ClockPreferencesTests: XCTestCase {
         expected.showsSeconds = true
         expected.fontSize = 36
         XCTAssertEqual(try decode(#"{"showsSeconds":true,"fontSize":36}"#), expected)
+    }
+
+    func testOlderPreferencesEnableAllBatterySlotsWithoutLosingSettings() throws {
+        let preferences = try decode(#"{"isVisible":false,"showsSeconds":true,"timeFormat":"twelveHour","fontName":"Helvetica-Bold","fontSize":40,"textColor":{"red":0.2,"green":0.4,"blue":0.6},"backgroundColor":{"red":0.7,"green":0.8,"blue":0.9},"backgroundOpacity":0.3,"positions":{"screen":{"x":0.25,"y":0.75}}}"#)
+        var expected = ClockPreferences()
+        expected.isVisible = false
+        expected.showsSeconds = true
+        expected.timeFormat = .twelveHour
+        expected.fontName = "Helvetica-Bold"
+        expected.fontSize = 40
+        expected.textColor = RGBAColor(red: 0.2, green: 0.4, blue: 0.6)
+        expected.backgroundColor = RGBAColor(red: 0.7, green: 0.8, blue: 0.9)
+        expected.backgroundOpacity = 0.3
+        expected.positions = ["screen": DisplayPosition(x: 0.25, y: 0.75)]
+        XCTAssertEqual(preferences, expected)
+        for field in batteryVisibilityFields {
+            XCTAssertTrue(preferences[keyPath: field.keyPath], field.key)
+        }
+    }
+
+    func testBatteryVisibilityDefaultsIndependentlyForMissingNullAndMalformedFields() throws {
+        let invalidValues: [String?] = [nil, "null", "\"false\"", "0", "1", "[]", "{}"]
+        for field in batteryVisibilityFields {
+            for invalidValue in invalidValues {
+                var entries = batteryVisibilityFields
+                    .filter { $0.key != field.key }
+                    .map { "\"\($0.key)\":false" }
+                if let invalidValue {
+                    entries.append("\"\(field.key)\":\(invalidValue)")
+                }
+                entries.append(contentsOf: ["\"fontName\":\"Helvetica-Bold\"", "\"fontSize\":42", "\"showsSeconds\":true"])
+                var expected = ClockPreferences()
+                for other in batteryVisibilityFields {
+                    expected[keyPath: other.keyPath] = other.key == field.key
+                }
+                expected.fontName = "Helvetica-Bold"
+                expected.fontSize = 42
+                expected.showsSeconds = true
+                let preferences = try decode("{\(entries.joined(separator: ","))}")
+                XCTAssertEqual(preferences, expected, "\(field.key): \(invalidValue ?? "missing")")
+            }
+        }
+    }
+
+    func testShowsAnyBatteryUsesAllFourVisibilityFlags() {
+        for selection in 0..<16 {
+            var preferences = ClockPreferences()
+            for (index, field) in batteryVisibilityFields.enumerated() {
+                preferences[keyPath: field.keyPath] = selection & (1 << index) != 0
+            }
+            XCTAssertEqual(preferences.showsAnyBattery, selection != 0, "Selection \(selection)")
+        }
     }
 
     func testNullMalformedAndUnknownFieldsAreTolerated() throws {
@@ -133,6 +202,26 @@ final class ClockPreferencesTests: XCTestCase {
         }
     }
 
+    func testSanitizationPreservesEveryBatteryVisibilitySelection() {
+        for selection in 0..<16 {
+            var preferences = ClockPreferences()
+            for (index, field) in batteryVisibilityFields.enumerated() {
+                preferences[keyPath: field.keyPath] = selection & (1 << index) != 0
+            }
+            preferences.fontSize = .nan
+            preferences.backgroundOpacity = -1
+            preferences.positions = ["screen": DisplayPosition(x: -1, y: 2)]
+            let sanitized = preferences.sanitized()
+            for field in batteryVisibilityFields {
+                XCTAssertEqual(sanitized[keyPath: field.keyPath], preferences[keyPath: field.keyPath], field.key)
+            }
+            XCTAssertEqual(sanitized.showsAnyBattery, preferences.showsAnyBattery)
+            XCTAssertEqual(sanitized.fontSize, 28)
+            XCTAssertEqual(sanitized.backgroundOpacity, 0)
+            XCTAssertEqual(sanitized.positions["screen"], DisplayPosition(x: 0, y: 1))
+        }
+    }
+
     func testDecodedOutOfRangeValuesCanBeSanitized() throws {
         let preferences = try decode(#"{"fontSize":3,"backgroundOpacity":2,"positions":{"screen":{"x":-1,"y":2}}}"#).sanitized()
         XCTAssertEqual(preferences.fontSize, 14)
@@ -159,6 +248,15 @@ final class ClockPreferencesTests: XCTestCase {
         XCTAssertNil(preferences.sanitized().fontName)
         preferences.fontName = " Custom-Font-Name "
         XCTAssertEqual(preferences.sanitized().fontName, "Custom-Font-Name")
+    }
+
+    private var batteryVisibilityFields: [(key: String, keyPath: WritableKeyPath<ClockPreferences, Bool>)] {
+        [
+            ("showsMacBattery", \.showsMacBattery),
+            ("showsIPhoneBattery", \.showsIPhoneBattery),
+            ("showsAirPodsBattery", \.showsAirPodsBattery),
+            ("showsAirPodsCaseBattery", \.showsAirPodsCaseBattery)
+        ]
     }
 
     private func decode(_ json: String) throws -> ClockPreferences {

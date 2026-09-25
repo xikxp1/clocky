@@ -16,15 +16,24 @@ struct ClockView: View {
     let text: String
     let preferences: ClockPreferences
     let isPositioning: Bool
+    let battery: BatterySnapshot
+
+    init(
+        text: String, preferences: ClockPreferences, isPositioning: Bool,
+        battery: BatterySnapshot = BatterySnapshot()
+    ) {
+        self.text = text
+        self.preferences = preferences
+        self.isPositioning = isPositioning
+        self.battery = battery
+    }
 
     var body: some View {
-        Text(text)
-            .font(Font(ClockFont.resolve(preferences)))
+        let layout = ClockContentLayout(text: text, battery: battery, preferences: preferences)
+        ClockContent(layout: layout)
             .foregroundStyle(preferences.textColor.swiftUIColor)
-            .lineLimit(1)
-            .minimumScaleFactor(0.25)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(.horizontal, ClockContentLayout.horizontalPadding)
+            .padding(.vertical, ClockContentLayout.verticalPadding)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(
                 preferences.backgroundColor.swiftUIColor
@@ -38,8 +47,14 @@ struct ClockView: View {
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Current time")
-            .accessibilityValue(text)
-            .help(isPositioning ? "Drag to reposition. Choose Lock Positions from the Clocky menu when done." : "Current time")
+            .accessibilityLabel(layout.accessibilityLabel)
+            .accessibilityValue(layout.accessibilityValue)
+            .help(
+                isPositioning
+                    ? "Drag to reposition. Choose Lock Positions from the Clocky menu when done."
+                    : (layout.columns.isEmpty
+                        ? "Current time"
+                        : "Battery icons: Mac above iPhone on the left; AirPods above its case on the right. AirPods shows the lower available earbud charge; '~' means approximate and '-' means unavailable. Full readings and optional Bluetooth fallback are in Settings.")
+            )
     }
 }

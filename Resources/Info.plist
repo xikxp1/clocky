@@ -7,7 +7,7 @@
     <key>CFBundleExecutable</key>
     <string>Clocky</string>
     <key>CFBundleIdentifier</key>
-    <string>local.clocky.app</string>
+    <string>dev.xikxp1.clocky</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
@@ -28,5 +28,7 @@
     <string>NSApplication</string>
     <key>NSHighResolutionCapable</key>
     <true/>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Clocky observes Bluetooth connections and, if you enable BLE fallback, scans for AirPods battery broadcasts and reads the selected iPhone over Bluetooth.</string>
 </dict>
 </plist>

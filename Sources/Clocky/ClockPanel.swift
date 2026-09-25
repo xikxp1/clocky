@@ -11,9 +11,9 @@ final class ClockPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
 
-    init(text: String, preferences: ClockPreferences) {
+    init(text: String, preferences: ClockPreferences, battery: BatterySnapshot = BatterySnapshot()) {
         hostingView = NSHostingView(rootView: ClockView(
-            text: text, preferences: preferences, isPositioning: false
+            text: text, preferences: preferences, isPositioning: false, battery: battery
         ))
         super.init(
             contentRect: .zero,
@@ -46,8 +46,13 @@ final class ClockPanel: NSPanel {
         dragSurface.onDragEnded = { [weak self] frame in self?.onPositionChanged?(frame) }
     }
 
-    func render(text: String, preferences: ClockPreferences, positioning: Bool, visibleFrame: CGRect) {
-        hostingView.rootView = ClockView(text: text, preferences: preferences, isPositioning: positioning)
+    func render(
+        text: String, preferences: ClockPreferences, positioning: Bool, visibleFrame: CGRect,
+        battery: BatterySnapshot = BatterySnapshot()
+    ) {
+        hostingView.rootView = ClockView(
+            text: text, preferences: preferences, isPositioning: positioning, battery: battery
+        )
         ignoresMouseEvents = !positioning
         dragSurface.isPositioning = positioning
         dragSurface.visibleFrame = visibleFrame
@@ -57,10 +62,10 @@ final class ClockPanel: NSPanel {
 
     var isDragging: Bool { dragSurface.isDragging }
 
-    static func preferredSize(text: String, preferences: ClockPreferences) -> CGSize {
-        let font = ClockFont.resolve(preferences)
-        let measured = (text as NSString).size(withAttributes: [.font: font])
-        return CGSize(width: ceil(measured.width) + 30, height: ceil(measured.height) + 22)
+    static func preferredSize(
+        text: String, preferences: ClockPreferences, battery: BatterySnapshot = BatterySnapshot()
+    ) -> CGSize {
+        ClockContentLayout(text: text, battery: battery, preferences: preferences).panelSize
     }
 }
 

@@ -7,14 +7,16 @@ final class OverlayManager: ObservableObject {
     @Published private(set) var isPositioning = false
     private let settings: SettingsStore
     private let time: TimeService
+    private let battery: BatteryService
     private var panels: [String: ClockPanel] = [:]
     private var screens: [String: NSScreen] = [:]
     private var subscriptions: Set<AnyCancellable> = []
     private var observers: [(NotificationCenter, NSObjectProtocol)] = []
 
-    init(settings: SettingsStore, time: TimeService) {
+    init(settings: SettingsStore, time: TimeService, battery: BatteryService) {
         self.settings = settings
         self.time = time
+        self.battery = battery
         settings.$preferences.dropFirst()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] preferences in
@@ -26,6 +28,11 @@ final class OverlayManager: ObservableObject {
         time.$text.dropFirst()
             // Main-queue delivery continues during menu/event tracking, unlike
             // scheduling in the main run loop's default mode.
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.refresh() }
+            .store(in: &subscriptions)
+
+        battery.$snapshot.dropFirst()
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.refresh() }
             .store(in: &subscriptions)
@@ -72,7 +79,7 @@ final class OverlayManager: ObservableObject {
         }
         screens = current
         for (key, _) in screens where panels[key] == nil {
-            let panel = ClockPanel(text: time.text, preferences: settings.preferences)
+            let panel = ClockPanel(text: time.text, preferences: settings.preferences, battery: battery.snapshot)
             panel.onPositionChanged = { [weak self] frame in
                 guard let self, let screen = self.screens[key] else { return }
                 let position = OverlayGeometry.position(for: frame, in: Self.usableFrame(screen))
@@ -85,11 +92,15 @@ final class OverlayManager: ObservableObject {
 
     private func refresh(bringForward: Bool = false) {
         let preferences = settings.preferences
-        let size = ClockPanel.preferredSize(text: time.text, preferences: preferences)
+        let snapshot = battery.snapshot
+        let size = ClockPanel.preferredSize(text: time.text, preferences: preferences, battery: snapshot)
         for (key, panel) in panels {
             guard let screen = screens[key] else { continue }
             let usable = Self.usableFrame(screen)
-            panel.render(text: time.text, preferences: preferences, positioning: isPositioning, visibleFrame: usable)
+            panel.render(
+                text: time.text, preferences: preferences, positioning: isPositioning,
+                visibleFrame: usable, battery: snapshot
+            )
             // A tick must not snap a panel back to its saved position mid-drag.
             if !panel.isDragging {
                 let frame = OverlayGeometry.frame(

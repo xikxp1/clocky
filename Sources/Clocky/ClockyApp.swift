@@ -17,6 +17,7 @@ struct ClockyApp {
 private final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settings: SettingsStore!
     private var time: TimeService!
+    private var battery: BatteryService!
     private var overlays: OverlayManager!
     private var login: LoginItemManager!
     private var menuBar: MenuBarController?
@@ -30,7 +31,8 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             : UserDefaults.standard
         settings = SettingsStore(defaults: defaults)
         time = TimeService(settings: settings)
-        overlays = OverlayManager(settings: settings, time: time)
+        battery = BatteryService(settings: settings, enabled: !smokeTest)
+        overlays = OverlayManager(settings: settings, time: time, battery: battery)
         login = LoginItemManager()
         installMainMenu()
         menuBar = MenuBarController(settings: settings, overlays: overlays) { [weak self] in
@@ -48,19 +50,33 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let battery else { return .terminateNow }
+        shutdown()
+        // Do not exit before an in-flight helper has been terminated and reaped.
+        Task {
+            await battery.stopAndWait()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
     func applicationWillTerminate(_ notification: Notification) { shutdown() }
 
     private func shutdown() {
         settingsWindow?.close()
         overlays?.stop()
         time?.stop()
+        battery?.stop()
         login?.stop()
         menuBar?.stop()
     }
 
     @objc private func showSettings() {
         if settingsWindow == nil {
-            settingsWindow = SettingsWindowController(settings: settings, overlays: overlays, time: time, login: login)
+            settingsWindow = SettingsWindowController(
+                settings: settings, overlays: overlays, time: time, battery: battery, login: login
+            )
         }
         settingsWindow?.present()
     }
